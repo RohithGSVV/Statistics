@@ -1,0 +1,96 @@
+---
+title: "MiniProject"
+output: pdf_document
+date: "2023-12-02"
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Preprocessing:
+```{r}
+data <- read.csv("Bias_correction_ucl.csv")
+total_missing_values <- sum(is.na(data))
+total_missing_values
+data_clean <- na.omit(data)
+data_clean$station <- as.factor(data_clean$station)
+total_missing_values_after_cleaning <- sum(is.na(data_clean))
+total_missing_values_after_cleaning
+data_clean
+```
+
+Split the data:
+```{r}
+data_clean <- data_clean[order(data_clean$Date), ]
+
+train_size <- round(nrow(data_clean) * 0.60)
+valid_size <- round(nrow(data_clean) * 0.80)
+
+train_data <- data_clean[1:train_size, ]
+valid_data <- data_clean[(train_size + 1):valid_size, ]
+test_data <- data_clean[(valid_size + 1):nrow(data_clean), ]
+
+nrow(train_data)
+nrow(valid_data)
+nrow(test_data)
+
+```
+
+Remove date column to not use as predictor:
+```{r}
+data_clean$Date <- NULL
+```
+
+Fit a multiple regression model:
+```{r}
+predictors <- setdiff(names(train_data), c('Next_Tmax', 'Date', 'station'))
+train_data_subset <- train_data[, c('Next_Tmax', predictors)]
+
+model <- lm(Next_Tmax ~ ., data = train_data_subset)
+valid_data_subset <- valid_data[, predictors]
+predictions <- predict(model, newdata = valid_data_subset)
+
+rmse <- sqrt(mean((valid_data$Next_Tmax - predictions)^2))
+rmse
+```
+
+Improvements:
+```{r}
+library(car)
+
+# Calculate VIF
+vif_model <- vif(model)
+print(vif_model)
+
+# Consider removing variables with a high VIF (typically VIF > 10 indicates high multicollinearity)
+
+# Applying log transformation as an example
+train_data$log_Next_Tmax <- log(train_data$Next_Tmax)
+
+# Update model with transformed variable
+model_transformed <- lm(log_Next_Tmax ~ ., data=train_data)
+summary(model_transformed)
+
+
+# Using the 'sandwich' package for robust standard errors
+library(sandwich)
+library(lmtest)
+
+# Fitting a model with robust standard errors
+coeftest(model, vcov = vcovHC(model, type = "HC3"))
+
+# Adding an interaction term between two variables as an example
+model_interaction <- lm(Next_Tmax ~ . + variable1:variable2, data=train_data)
+summary(model_interaction)
+# Plot residuals
+plot(model, which = 1)
+
+# Perform a Shapiro-Wilk test of normality on residuals
+shapiro.test(residuals(model))
+
+# Perform a Breusch-Pagan test for heteroscedasticity
+bptest(model)
+
+```

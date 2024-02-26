@@ -1,0 +1,199 @@
+---
+title: "MiniProject"
+output: pdf_document
+date: "2023-12-02"
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Preprocessing:
+```{r}
+rm(list = ls())
+
+library(readr)
+data <- read_csv("Bias_correction_ucl.csv")
+summary(data)
+```
+
+```{r}
+initial_structure <- dim(data)
+# Removing rows with NA in the 'Date' column
+data <- data %>% filter(!is.na(Date))
+# Output the structures
+print(initial_structure)
+# Structure of the cleaned data
+cleaned_structure <- dim(data)
+print(cleaned_structure)
+summary(data)
+
+```
+
+
+```{r}
+# Imputing missing values with median for numeric columns
+# Preprocess the data
+# Handle missing values by omitting rows with NAs
+data <- na.omit(data)
+data$station <- as.factor(data$station)
+str(data)
+```
+
+```{r}
+print( nrow(data))
+```
+
+Split the data:
+```{r}
+data <- data[order(data$Date), ]
+
+train_size <- round(nrow(data) * 0.60)
+valid_size <- round(nrow(data) * 0.80)
+
+train_data <- data[1:train_size, ]
+valid_data <- data[(train_size + 1):valid_size, ]
+test_data <- data[(valid_size + 1):nrow(data), ]
+
+nrow(train_data)
+nrow(valid_data)
+nrow(test_data)
+
+```
+
+
+Fit a multiple regression model:
+```{r}
+predictors <- setdiff(names(train_data), c('Next_Tmax', 'Date', 'station'))
+train_data_subset <- train_data[, c('Next_Tmax', predictors)]
+
+model <- lm(Next_Tmax ~ ., data = train_data_subset)
+valid_data_subset <- valid_data[, predictors]
+predictions <- predict(model, newdata = valid_data_subset)
+
+rmse <- sqrt(mean((valid_data$Next_Tmax - predictions)^2))
+rmse
+```
+```{r}
+# Fit the model with all potential predictors
+predictors <- setdiff(names(train_data), c('Next_Tmax', 'Date', 'station'))
+train_data_subset <- train_data[, c('Next_Tmax', predictors)]
+
+model <- lm(Next_Tmax ~ ., data = train_data_subset)
+
+# Get a summary of the model
+model_summary <- summary(model)
+
+# Find non-significant predictors
+non_significant_predictors <- names(which(model_summary$coefficients[, "Pr(>|t|)"] > 0.05))
+
+# Now remove non-significant predictors from the model
+significant_predictors <- setdiff(predictors, non_significant_predictors)
+train_data_subset <- train_data[, c('Next_Tmax', significant_predictors)]
+
+# Refit the model with only significant predictors
+model_significant <- lm(Next_Tmax ~ ., data = train_data_subset)
+valid_data_subset <- valid_data[, significant_predictors]
+predictions_significant <- predict(model_significant, newdata = valid_data_subset)
+
+# Calculate RMSE for the model with significant predictors
+rmse_significant <- sqrt(mean((valid_data$Next_Tmax - predictions_significant)^2))
+rmse_significant
+```
+
+```{r}
+rm(list = ls())
+
+data <- read_csv("Bias_correction_ucl.csv")
+# Preprocess the data
+# Handle missing values by omitting rows with NAs
+data <- na.omit(data)
+
+# Create a logical vector that indicates which columns are numeric, excluding 'Date' and 'station'
+numeric_columns <- sapply(data, is.numeric) & !(names(data) %in% c("Date", "station"))
+
+# Calculate the correlation matrix for numeric columns except for 'Next_Tmax'
+cor_matrix <- cor(data[, numeric_columns & !(names(data) %in% "Next_Tmax")])
+cor_matrix
+# Define the threshold for high correlation
+high_cor_threshold <- 0.7
+
+# Initialize a list to keep pairs of highly correlated variables
+high_cor_pairs <- list()
+
+# Identify pairs of highly correlated variables
+for (i in seq_len(ncol(cor_matrix))) {
+  for (j in i:ncol(cor_matrix)) {
+    if (i != j && abs(cor_matrix[i, j]) > high_cor_threshold) {
+      high_cor_pairs[[length(high_cor_pairs) + 1]] <- names(cor_matrix)[c(i, j)]
+    }
+  }
+}
+print("=============")
+high_cor_pairs
+# For each pair, keep the one with the higher absolute correlation with Next_Tmax
+variables_to_remove <- c()
+
+for (pair in high_cor_pairs) {
+  cor_to_next_tmax <- abs(sapply(pair, function(var) cor(data[[var]], data[["Next_Tmax"]])))
+  variable_to_keep <- pair[which.max(cor_to_next_tmax)]
+  variable_to_remove <- setdiff(pair, variable_to_keep)
+  
+  variables_to_remove <- c(variables_to_remove, variable_to_remove)
+}
+
+# Remove duplicate variable names in case they appear in more than one pair
+variables_to_remove <- unique(variables_to_remove)
+variables_to_remove
+# Remove the redundant variables from the data set
+final_data <- data[, !names(data) %in% variables_to_remove]
+
+# Now `final_data` can be used for fitting the regression model
+
+```
+
+Split the data:
+```{r}
+final_data <- final_data[order(final_data$Date), ]
+
+train_size <- round(nrow(final_data) * 0.60)
+valid_size <- round(nrow(final_data) * 0.80)
+
+train_data <- final_data[1:train_size, ]
+valid_data <- final_data[(train_size + 1):valid_size, ]
+test_data <- final_data[(valid_size + 1):nrow(final_data), ]
+
+nrow(train_data)
+nrow(valid_data)
+nrow(test_data)
+
+```
+
+Fit a multiple regression model:
+```{r}
+predictors <- setdiff(names(train_data), c('Next_Tmax', 'Date', 'station'))
+train_data_subset <- train_data[, c('Next_Tmax', predictors)]
+
+model <- lm(Next_Tmax ~ ., data = train_data_subset)
+valid_data_subset <- valid_data[, predictors]
+predictions <- predict(model, newdata = valid_data_subset)
+
+rmse <- sqrt(mean((valid_data$Next_Tmax - predictions)^2))
+rmse
+
+model <- lm(Next_Tmax ~ ., data = train_data_subset)
+test_data_subset <- test_data[, predictors]
+predictions <- predict(model, newdata = test_data_subset)
+
+rmse <- sqrt(mean((test_data_subset$Next_Tmax - predictions)^2))
+rmse
+```
+
+
+
+
+
+
+
+

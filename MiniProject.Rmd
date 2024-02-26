@@ -1,0 +1,515 @@
+---
+title: "MiniProject"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+date: "2023-12-02"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Given Information:  
+
+Dataset Source : https://archive.ics.uci.edu/ml/datasets/Bias+correction+of+numerical+
+ prediction+model+temperature+forecast
+ 
+Target Variable to Predict : Next_Tmax 
+
+#### **(a, b, c) Preprocessing, Splitting, Initial Model**  
+
+Summary of the dataset is as follows:  
+
+```{r}
+library(readr)
+data <- read_csv("Bias_correction_ucl.csv")
+summary(data)
+```
+
+Moving on with three different approaches of handling NULL Values:
+
+1. Imputing the missing values with the mean values of the variables  
+
+2. Imputing the missing values with the median values of the variables  
+
+3. Omitting the Null Values  
+
+Common step in all the above methods is to remove the NULL values in the 'date' column  
+
+```{r}
+library(dplyr)
+initial_structure <- dim(data)
+
+data <- data %>% filter(!is.na(Date))
+
+cleaned_structure <- dim(data)
+
+print(initial_structure)
+print(cleaned_structure)
+data_med <- data
+data_mean <- data
+```
+
+#### Approach 1 - Imputing with mean values  
+
+```{r}
+# Imputing missing values with mean for numeric columns
+numeric_columns <- sapply(data_mean, is.numeric)
+data_mean[numeric_columns] <- lapply(data_mean[numeric_columns], function(x) ifelse(is.na(x), mean(x, na.rm = TRUE), x))
+
+data_mean$station <- as.factor(data_mean$station)
+
+str(data_mean)
+```
+
+After Imputing the Values with mean, we split this data set into train, validation and test data sets. Following is the number of rows for the entire data set, train, vaidation & test data sets respectively  
+
+```{r}
+data_mean <- data_mean[order(data_mean$Date), ]
+
+train_size_mean <- round(nrow(data_mean) * 0.60)
+valid_size_mean <- round(nrow(data_mean) * 0.80)
+
+train_data_mean <- data_mean[1:train_size_mean, ]
+valid_data_mean <- data_mean[(train_size_mean + 1):valid_size_mean, ]
+test_data_mean <- data_mean[(valid_size_mean + 1):nrow(data_mean), ]
+
+nrow(data_mean)
+nrow(train_data_mean)
+nrow(valid_data_mean)
+nrow(test_data_mean)
+```
+
+Now we apply regression model and train it with the train dataset for mean and check it's Evaluation Metric (Root Mean Squared Error [RMSE]) value for our Approach - 1
+
+```{r}
+predictors <- setdiff(names(train_data_mean), c('Next_Tmax', 'Date', 'station', 'Next_Tmin'))
+train_data_subset_mean <- train_data_mean[, c('Next_Tmax', predictors)]
+
+model_mean <- lm(Next_Tmax ~ ., data = train_data_subset_mean)
+valid_data_subset_mean <- valid_data_mean[, predictors]
+predictions_mean <- predict(model_mean, newdata = valid_data_subset_mean)
+
+rmse <- sqrt(mean((valid_data_mean$Next_Tmax - predictions_mean)^2))
+rmse
+```
+
+#### Approach 2 - Imputing with median values  
+
+Structure of the data set when imputed with median values is as follows:  
+
+```{r}
+# Imputing missing values with median for numeric columns
+numeric_columns <- sapply(data_med, is.numeric)
+data_med[numeric_columns] <- lapply(data_med[numeric_columns], function(x) ifelse(is.na(x), median(x, na.rm = TRUE), x))
+
+data_med$station <- as.factor(data_med$station)
+
+str(data_med)
+```
+
+After Imputing the Values with median, we split this data set into train, validation and test data sets. Following is the number of rows for the entire data set, train, vaidation & test data sets respectively
+
+```{r}
+data_med <- data_med[order(data_med$Date), ]
+
+train_size_med <- round(nrow(data_med) * 0.60)
+valid_size_med <- round(nrow(data_med) * 0.80)
+
+train_data_med <- data_med[1:train_size_med, ]
+valid_data_med <- data_med[(train_size_med + 1):valid_size_med, ]
+test_data_med <- data_med[(valid_size_med + 1):nrow(data_med), ]
+
+nrow(data_med)
+nrow(train_data_med)
+nrow(valid_data_med)
+nrow(test_data_med)
+```
+
+Now we apply regression model and train it with the train dataset for median and check it's Evaluation Metric (Root Mean Squared Error [RMSE]) value for our Approach - 2
+
+```{r}
+predictors <- setdiff(names(train_data_med), c('Next_Tmax', 'Date', 'station', 'Next_Tmin'))
+train_data_subset_med <- train_data_med[, c('Next_Tmax', predictors)]
+
+model_med <- lm(Next_Tmax ~ ., data = train_data_subset_med)
+valid_data_subset_med <- valid_data_med[, predictors]
+predictions_med <- predict(model_med, newdata = valid_data_subset_med)
+
+rmse <- sqrt(mean((valid_data_med$Next_Tmax - predictions_med)^2))
+rmse
+```
+
+#### Approach 3 - Omitting NULL values 
+
+```{r}
+data <- na.omit(data)
+data$station <- as.factor(data$station)
+sum(is.na(data))
+nrow(data)
+```
+
+After removing the NULL values, we split this data set into train, validation and test data sets. Following is the number of rows for the entire data set, train, vaidation & test data sets respectively  
+
+```{r}
+data <- data[order(data$Date), ]
+
+train_size <- round(nrow(data) * 0.60)
+valid_size <- round(nrow(data) * 0.80)
+
+train_data <- data[1:train_size, ]
+valid_data <- data[(train_size + 1):valid_size, ]
+test_data <- data[(valid_size + 1):nrow(data), ]
+
+nrow(data)
+nrow(train_data)
+nrow(valid_data)
+nrow(test_data)
+```
+
+Now we apply regression model and train it with the train dataset and check it's Evaluation Metric (Root Mean Squared Error [RMSE]) value for our Approach - 3
+
+```{r}
+predictors <- setdiff(names(train_data), c('Next_Tmax', 'Date', 'station', 'Next_Tmin'))
+train_data_subset <- train_data[, c('Next_Tmax', predictors)]
+
+model <- lm(Next_Tmax ~ ., data = train_data_subset)
+valid_data_subset <- valid_data[, predictors]
+predictions <- predict(model, newdata = valid_data_subset)
+
+rmse <- sqrt(mean((valid_data$Next_Tmax - predictions)^2))
+rmse
+```
+
+From the above three approaches, it is clearly evident that the Approach - 3 which omits null values is the best method of handling null values for the given data set with the least RMSE Value of 1.513. Thus, this approach is selected for further improvements  
+
+#### Target Features vs Different Variables in the Dataset  
+
+```{r}
+layout(matrix(1:4,2,2))
+ plot(data$Next_Tmax,data$station , ylab="station", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$Present_Tmin , ylab="Present_Tmin", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$Present_Tmax , ylab="Present_Tmax", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$LDAPS_WS , ylab="Solar radiation", xlab="Next T max (Target)")
+```
+
+```{r}
+layout(matrix(1:6,2,3))
+ plot(data$Next_Tmax,data$LDAPS_WS , ylab="LDAPS_WS", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$LDAPS_LH , ylab="LDAPS_LH", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$LDAPS_RHmin , ylab="LDAPS_RHmin", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$LDAPS_RHmax , ylab="LDAPS_RHmax", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$LDAPS_Tmax_lapse , ylab="LDAPS_Tmax_lapse", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$LDAPS_Tmin_lapse , ylab="LDAPS_Tmin_lapse", xlab="Next T max (Target)")
+```
+```{r}
+layout(matrix(1:4,2,2))
+ plot(data$Next_Tmax,data$LDAPS_CC1 , ylab="LDAPS_CC1", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$LDAPS_CC2 , ylab="LDAPS_CC2", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$LDAPS_CC3 , ylab="LDAPS_CC3", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$LDAPS_CC4 , ylab="LDAPS_CC4", xlab="Next T max (Target)")
+```
+```{r}
+layout(matrix(1:4,2,2))
+ plot(data$Next_Tmax,data$LDAPS_PPT1 , ylab="LDAPS_PPT1", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$LDAPS_PPT2 , ylab="LDAPS_PPT2", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$LDAPS_PPT3 , ylab="LDAPS_PPT3", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$LDAPS_PPT4 , ylab="LDAPS_PPT4", xlab="Next T max (Target)")
+```
+
+```{r}
+ layout(matrix(1:4,2,2))
+ plot(data$Next_Tmax,data$lat , ylab="lat", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$lon , ylab="lon", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$DEM , ylab="DEM", xlab="Next T max (Target)")
+ plot(data$Next_Tmax,data$Slope , ylab="Slope", xlab="Next T max (Target)")
+```
+
+```{r}
+coefficients <- coef(model)[-1]  # Exclude the intercept
+
+coefficients_df <- data.frame(Feature = names(coefficients), Coefficient = coefficients)
+coefficients_df$Color <- ifelse(coefficients_df$Coefficient > 0, "blue", "red")
+
+library(ggplot2)
+ggplot(coefficients_df, aes(x = reorder(Feature, Coefficient), y = Coefficient, fill = Color)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  theme_minimal() +
+  labs(x = "Features", y = "Coefficients", title = "Coefficients in the Linear Regression Model") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  scale_fill_manual(values = c("blue", "red"))
+
+# Residuals Plot
+residuals <- valid_data$Next_Tmax - predictions
+
+plot(predictions, residuals,
+     xlab = "Predicted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Predicted",
+     pch = 19,
+     col = "black")
+abline(h = 0, col = "red", lwd = 2)
+```
+
+#### **(d) Improved Model**
+
+### **Model 1**  
+
+We calculate the P-value every variable in the dataset to know what are the "non-significant" variables for analysis. By "non-significant", here we mean which variables doesn't contribute much to predict the target variable  
+
+P-Value > 0.05 is taken into consideration to consider variables to be non-significant under the following conditions for Hypothesis  
+
+$H_0$ : Coefficient of Variable $\beta_i$ = 0
+$H_1$ : Coefficient of Variable $\beta_i \neq$  0
+
+Thus if P-Value > 0.05, it means that the coefficient of that particular variable in the multiple linear regression equation is 0 i.e. predicted value is not dependent on this variable  
+
+For our Approach - 3, let's move on to find such "non-significant" variables
+
+```{r}
+summary(model)$coefficients[, "Pr(>|t|)"]
+non_significant_vars <- summary(model)$coefficients[, "Pr(>|t|)"] > 0.05
+names(non_significant_vars[non_significant_vars])
+```
+
+From the above result, "LDAPS_PPT3" "LDAPS_PPT4" are the "non-significant" variables. Thus, we remove them and apply the model again to test the RMSE value. Along with the above variables, we also removed redundant variables (Eg: Station code can be used instead of lat, lon, DEM, Slope)
+
+```{r}
+# Remove the non-significant columns and Next_Tmin from the dataset
+data$LDAPS_PPT3 <- NULL
+data$LDAPS_PPT4 <- NULL
+data$DEM <- NULL
+data$Next_Tmin <- NULL
+
+train_df1 <- subset(train_data, select = -c(Next_Tmin, Date, lon, lat, Slope, DEM, LDAPS_PPT3, LDAPS_PPT4))
+valid_df1 <- subset(valid_data, select = -c(Next_Tmax, Next_Tmin, Date, lon, lat, Slope, DEM, LDAPS_PPT3, LDAPS_PPT4))
+
+model1 <- lm(Next_Tmax ~ ., data = train_df1)
+
+summary(model1)
+
+predictions1 <- predict(model1, newdata = valid_df1)
+
+# Calculate new RMSE
+rmse1 <- sqrt(mean((valid_data$Next_Tmax - predictions1)^2))
+rmse1
+```
+```{r}
+anova(model1, model)
+```
+From Anova above we can conclude that RSS value has decreased. Hence, Model1 is better fit for this data than Model.
+
+
+### **Model 2**
+
+In Model2 to avoid over fitting the model with Cloud coverage and Precipitation values, we simplify the data by adding new columns "Night_cloud_cover", "Day_Cloud_Cover", "Precipitation" and removed respective old columns. 
+
+```{r}
+train_df2 <- within(train_df1, {
+  Night_Cloud_Cover = (LDAPS_CC1 + LDAPS_CC4) / 2
+  Day_Cloud_Cover = (LDAPS_CC2 + LDAPS_CC3) / 2
+  Precipitation = (LDAPS_PPT1 + LDAPS_PPT2) / 2
+  
+  # Remove the original columns
+  LDAPS_CC1 = NULL
+  LDAPS_CC2 = NULL
+  LDAPS_CC3 = NULL
+  LDAPS_CC4 = NULL
+  LDAPS_PPT1 = NULL
+  LDAPS_PPT2 = NULL
+})
+
+head(train_df2)
+```
+
+```{r}
+valid_df2 <- within(valid_df1, {
+  Night_Cloud_Cover = (LDAPS_CC1 + LDAPS_CC4) / 2
+  Day_Cloud_Cover = (LDAPS_CC2 + LDAPS_CC3) / 2
+  Precipitation = LDAPS_PPT1 + LDAPS_PPT2 / 2
+  
+  # Remove the original columns
+  LDAPS_CC1 = NULL
+  LDAPS_CC2 = NULL
+  LDAPS_CC3 = NULL
+  LDAPS_CC4 = NULL
+  LDAPS_PPT1 = NULL
+  LDAPS_PPT2 = NULL
+})
+head(valid_df2)
+```
+
+```{r}
+model2 <- lm(Next_Tmax ~ ., data = train_df2)
+
+predictions2 <- predict(model2, newdata = valid_df2)
+
+rmse <- sqrt(mean((valid_data$Next_Tmax - predictions2)^2))
+
+print(rmse)
+
+summary(model2)
+```
+```{r}
+anova(model2, model)
+```
+
+From above, we can conclude that RMSE value has decreased. Hence, Model2 is better fit for this data than Model1, which shows better predictive capability of model2.
+
+```{r}
+coefficients <- coef(model2)[-1]
+
+coefficients_df <- data.frame(Feature = names(coefficients), Coefficient = coefficients)
+coefficients_df$Color <- ifelse(coefficients_df$Coefficient > 0, "blue", "red")
+library(ggplot2)
+ggplot(coefficients_df, aes(x = reorder(Feature, Coefficient), y = Coefficient, fill = Color)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  theme_minimal() +
+  labs(x = "Features", y = "Coefficients", title = "Coefficients in the Linear Regression model2") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  scale_fill_manual(values = c("blue", "red"))
+
+residuals <- valid_data$Next_Tmax - predictions
+
+plot(predictions, residuals,
+     xlab = "Predicted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Predicted",
+     pch = 19,
+     col = "black")
+abline(h = 0, col = "red", lwd = 2)
+```
+
+### **Model 3**
+
+Now we again calculate p -values with newly added columns, and remove  "non-significant" variables for analysis.
+
+```{r}
+summary(model2)$coefficients[, "Pr(>|t|)"]
+non_significant_vars <- summary(model2)$coefficients[, "Pr(>|t|)"] > 0.05
+names(non_significant_vars[non_significant_vars])
+```
+
+From the above result, "Present_Tmin" are the "non-significant" variables. Thus, we remove them and apply the model again to test the RMSE value.
+
+```{r}
+train_df3 = train_df2
+valid_df3 = valid_df2
+```
+
+
+```{r}
+
+train_df3$Present_Tmin <- NULL
+valid_df3$Present_Tmin <- NULL
+
+model3 <- lm(Next_Tmax ~ ., data = train_df3)
+
+predictions3 <- predict(model3, newdata = valid_df3)
+
+rmse <- sqrt(mean((valid_data$Next_Tmax - predictions3)^2))
+
+print(rmse)
+
+```
+
+```{r}
+summary(model3)$coefficients[, "Pr(>|t|)"]
+non_significant_vars <- summary(model3)$coefficients[, "Pr(>|t|)"] > 0.05
+names(non_significant_vars[non_significant_vars])
+```
+
+```{r}
+anova(model3, model)
+```
+
+
+
+```{r}
+coefficients <- coef(model3)[-1]
+
+coefficients_df <- data.frame(Feature = names(coefficients), Coefficient = coefficients)
+coefficients_df$Color <- ifelse(coefficients_df$Coefficient > 0, "blue", "red")
+library(ggplot2)
+ggplot(coefficients_df, aes(x = reorder(Feature, Coefficient), y = Coefficient, fill = Color)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  theme_minimal() +
+  labs(x = "Features", y = "Coefficients", title = "Coefficients in the Linear Regression model2") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  scale_fill_manual(values = c("blue", "red"))
+
+# Residuals Plot
+residuals <- valid_data$Next_Tmax - predictions
+
+plot(predictions, residuals,
+     xlab = "Predicted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Predicted",
+     pch = 19,
+     col = "black")
+abline(h = 0, col = "red", lwd = 2)
+```
+From above analysis we dont have any P-values that are > 0.05, but from above coefficients histogram we can tell that Next_Tmax is least dependent on LDAPS_LH, Solar Radiation, LDAPS_RHmax
+
+```{r}
+shapiro.test(model3$residuals)
+```
+
+```{r}
+{
+ qqnorm(model3$residuals)
+ qqline(model3$residuals)
+}
+```
+
+The middle portion of the plot, where points conform more closely to a straight line, suggests that the data distribution is approximately normal.
+
+
+### **Results from Test Data**
+
+
+```{r}
+test_data_subset <- test_data[, predictors]
+test_predictions <- predict(model, newdata = test_data_subset)
+test_rmse1 <- sqrt(mean((test_data$Next_Tmax - test_predictions)^2))
+test_rmse1
+```
+
+
+```{r}
+test_df2 <- within(test_data, {
+  Night_Cloud_Cover = (LDAPS_CC1 + LDAPS_CC4) / 2
+  Day_Cloud_Cover = (LDAPS_CC2 + LDAPS_CC3) / 2
+  Precipitation = (LDAPS_PPT1 + LDAPS_PPT2) / 2
+  
+  LDAPS_CC1 = NULL
+  LDAPS_CC2 = NULL
+  LDAPS_CC3 = NULL
+  LDAPS_CC4 = NULL
+  LDAPS_PPT1 = NULL
+  LDAPS_PPT2 = NULL
+  Next_Tmin = NULL
+  Date = NULL
+  lon = NULL
+  lat = NULL
+  Slope = NULL 
+  DEM = NULL 
+  LDAPS_PPT3 = NULL 
+  LDAPS_PPT4 = NULL
+})
+
+test_predictions2 <- predict(model3, newdata = test_df2)
+test_rmse2 <- sqrt(mean((test_data$Next_Tmax - test_predictions2)^2))
+test_rmse2
+```
+
+  Based on the RMSE values comparision, it clearly shows that our Improved model can predict with better accuracy than the initial model.
+
+
+
+
